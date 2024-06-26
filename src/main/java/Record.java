@@ -92,11 +92,11 @@ public class Record {
         assert n >= 0 && n <= this.serialTypes.size();
         int colType = this.serialTypes.get(n);
         return switch (colType) {
-            case 0 -> null;
-            case 3, 5 -> throw new RuntimeException("not implemented");
-            case 8 -> 0;
-            case 9 -> 1;
-            default -> values.get(n);
-        };
-    }
+        case 0 -> null;
+        case 5 -> throw new RuntimeException("not implemented");
+        case 8 -> 0;
+        case 9 -> 1;
+        default -> values.get(n);
+    };
+}
 }

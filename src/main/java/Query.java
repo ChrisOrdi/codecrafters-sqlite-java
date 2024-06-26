@@ -1,80 +1,56 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Scanner;
-
 public class Query {
     String table;
     List<String> columns;
-    String whereColumn;
-    String whereValue;
-
+    String filter;
     public Query(String table, List<String> columns) {
         this.table = table;
         this.columns = columns;
     }
-
-    public String getTable() {
-        return table;
-    }
-
-    public void setTable(String table) {
+    public Query(String table, List<String> columns, String filter) {
         this.table = table;
-    }
-
-    public List<String> getColumns() {
-        return columns;
-    }
-
-    public void setColumns(List<String> columns) {
         this.columns = columns;
+        this.filter = filter;
     }
-
-    public String getWhereColumn() {
-        return whereColumn;
-    }
-
-    public void setWhereColumn(String whereColumn) {
-        this.whereColumn = whereColumn;
-    }
-
-    public String getWhereValue() {
-        return whereValue;
-    }
-
-    public void setWhereValue(String whereValue) {
-        this.whereValue = whereValue;
-    }
-
-    public static Query parse(String queryText) {
-        Scanner scanner = new Scanner(queryText);
-        var select = scanner.next();
-        assert select.equalsIgnoreCase("select");
+    public String getTable() { return table; }
+    public void setTable(String table) { this.table = table; }
+    public List<String> getColumns() { return columns; }
+    public void setColumns(List<String> columns) { this.columns = columns; }
+    public static Query parse(String sql) {
+        String[] parts = sql.split(" ");
+        List<String> partsList = Arrays.asList(parts);
+        int selectIndex = getIndexCaseInsensite("SELECT", partsList);
+        int fromIndex = getIndexCaseInsensite("FROM", partsList);
+        int whereIndex = getIndexCaseInsensite("WHERE", partsList);
+        String table = partsList.get(fromIndex + 1);
         List<String> columns = new ArrayList<>();
-        while (!(scanner.hasNext("from") || scanner.hasNext("FROM"))) {
-            var c = scanner.next();
-            var index = c.indexOf(',');
-            var columnName = index >= 0 ? c.substring(0, index) : c;
+        for (int i = selectIndex + 1; i < fromIndex; ++i) {
+            var col = partsList.get(i);
+            var index = col.indexOf(',');
+            var columnName = index >= 0 ? col.substring(0, index) : col;
             columns.add(columnName);
         }
-        var next = scanner.next();
-        assert next.equalsIgnoreCase("from");
-        var tableName = scanner.next();
-
-        String whereColumn = null;
-        String whereValue = null;
-        if (scanner.hasNext("where") || scanner.hasNext("WHERE")) {
-            scanner.next(); // skip 'where'
-            whereColumn = scanner.next();
-            scanner.next(); // skip '='
-            whereValue = scanner.next();
-            if (whereValue.startsWith("'") && whereValue.endsWith("'")) {
-                whereValue = whereValue.substring(1, whereValue.length() - 1);
-            }
+        if (whereIndex != -1) {
+            String filter =
+                    String.join(" ", partsList.subList(whereIndex + 1, partsList.size()));
+            return new Query(table, columns, filter);
+        } else {
+            return new Query(table, columns, "");
         }
-
-        Query query = new Query(tableName, columns);
-        query.setWhereColumn(whereColumn);
-        query.setWhereValue(whereValue);
-        return query;
+    }
+    private static int getIndexCaseInsensite(String str, List<String> partsList) {
+        int index = partsList.indexOf(str);
+        if (index == -1) {
+            index = partsList.indexOf(str.toLowerCase());
+        }
+        return index;
+    }
+    @Override
+    public String toString() {
+        return "Query{"
+                + "table='" + table + '\'' + ", columns=" + columns + ", filter='" +
+                filter + '\'' + '}';
     }
 }
