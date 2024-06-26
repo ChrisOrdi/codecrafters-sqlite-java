@@ -4,7 +4,6 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -79,7 +78,6 @@ public class DataBase {
             ByteBuffer cellPayload = ByteBuffer.wrap(cell.getPayload()).order(ByteOrder.BIG_ENDIAN);
             var record = Record.readRecord(cellPayload);
             String[] row = new String[columnIndexes.size()];
-
             for (int i = 0; i < columnIndexes.size(); ++i) {
                 row[i] = String.valueOf(record.getValues().get(columnIndexes.get(i)));
             }
@@ -107,4 +105,7 @@ public class DataBase {
     private BtreePage getNthPage(int n) {
         return BtreePage.readPage(fileContents, n);
     }
+
+    // Helper classes and methods for BtreePage, Cell, Record, Schema, Query, etc.
+    // should be defined elsewhere in your project.
 }
