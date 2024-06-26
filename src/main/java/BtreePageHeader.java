@@ -23,7 +23,10 @@ public class BtreePageHeader {
         short cellCounts = page.getShort();
         short startOfCellContentArea = page.getShort();
         byte numberOfFragmentedBytes = page.get();
-        int rightMostPointer = page.getInt();
+        int rightMostPointer = 0;
+        if (pageType == 0x02 || pageType == 0x05) {
+            rightMostPointer = page.getInt();
+        }
         return new BtreePageHeader(pageType, freeBlocks, cellCounts,
                 startOfCellContentArea, numberOfFragmentedBytes,
                 rightMostPointer);

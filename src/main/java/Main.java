@@ -59,20 +59,16 @@ public class Main {
         {
           System.out.println("Error reading file: " + e.getMessage());
         }
-      }
-
-//      default -> System.out.println("Missing or invalid command passed: " + command);
-      default ->
+      }  default ->
       {
-        var queryTokens = command.split(" ");
+        var query = Query.parse(command);
 
-        if (queryTokens.length == 4)
+        if (query.getColumns().size() == 1 && query.getColumns().get(0).equalsIgnoreCase("count(*)"))
         {
-          var tableName = queryTokens[3];
           try
           {
             database.load();
-            var c = database.countRows(tableName);
+            var c = database.countRows(query.getTable());
             System.out.println(c);
           }
           catch (IOException e)
@@ -82,60 +78,66 @@ public class Main {
         }
         else
         {
-          throw new RuntimeException("invalid command");
+          try
+          {
+            database.load();
+            var result = database.runQuery(query);
+
+            for (var res : result)
+            {
+              System.out.println(String.join("|", res));
+            }
+          }
+          catch (IOException e) {
+            throw new RuntimeException(e);
+          }
         }
       }
     }
   }
-
-  private static void printTables(String databaseFilePath) throws IOException
-  {
+  private static void printTables(String databaseFilePath) throws IOException {
     ByteBuffer fileContents = getContents(databaseFilePath).position(100);
     ByteBuffer firstPage = fileContents.position(100);
     var pageHeader = BtreePageHeader.getHeader(firstPage);
     firstPage.position(pageHeader.getGetStartOfCellContentArea());
     List<List<String>> records = new Stack<>();
-    for(int i=0;i<pageHeader.cellCounts; ++i)
-    {
+    for (int i = 0; i < pageHeader.cellCounts; ++i) {
       records.add(printCell(firstPage));
     }
     Collections.reverse(records);
-    System.out.println(String.join(" ", records.stream().map(rec -> rec.get(2)).toList()));
+    System.out.println(
+            String.join(" ", records.stream().map(rec -> rec.get(2)).toList()));
   }
-  private static ByteBuffer getContents(String databaseFilePath) throws IOException
-  {
-    return ByteBuffer.wrap(Files.readAllBytes(Path.of(databaseFilePath))).order(ByteOrder.BIG_ENDIAN);
+  private static ByteBuffer getContents(String databaseFilePath)
+          throws IOException {
+    return ByteBuffer.wrap(Files.readAllBytes(Path.of(databaseFilePath)))
+            .order(ByteOrder.BIG_ENDIAN);
   }
-  private static List<String> printCell(ByteBuffer cellArray)
-  {
-    //varint
+  private static List<String> printCell(ByteBuffer cellArray) {
+    // varint
     VarInt bytesOfPayload = Cell.from(cellArray);
-    //varint
+    // varint
     VarInt rowId = Cell.from(cellArray);
-    //payload
+    // payload
     byte[] payload = new byte[(int)bytesOfPayload.value()];
     cellArray.get(payload);
     ByteBuffer recordBuf = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN);
     return printRecord(recordBuf);
-    //if everything fits in the page, omit this.
-    //int firstPageOverflowList = cellArray.getInt();
+    // if everything fits in the page, omit this.
+    // int firstPageOverflowList = cellArray.getInt();
   }
-  private static List<String> printRecord(ByteBuffer buffer)
-  {
-    //header
+  private static List<String> printRecord(ByteBuffer buffer) {
+    // header
     var sizeOfHeader = Cell.from(buffer);
     long remaining = sizeOfHeader.value() - sizeOfHeader.bytesRead();
     List<Integer> columnsType = new ArrayList<>();
-    while(remaining > 0)
-    {
+    while (remaining > 0) {
       var varInt = Cell.from(buffer);
       columnsType.add((int)varInt.value());
       remaining -= varInt.bytesRead();
     }
-
     List<String> values = new ArrayList<>();
-    for (var colType : columnsType)
-    {
+    for (var colType : columnsType) {
       switch (colType) {
         case 0:
           values.add("NULL");
