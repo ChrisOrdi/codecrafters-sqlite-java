@@ -4,6 +4,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public class Schema {
     String tableName;
@@ -31,54 +32,65 @@ public class Schema {
         byte pageType = page.btreePageHeader.pageType;
         ByteBuffer pageContents = ByteBuffer.wrap(page.pageContents).order(ByteOrder.BIG_ENDIAN);
         Schema schema = null;
+
         for (var cellOffset : page.cellPointerArray) {
             pageContents.position(cellOffset);
             var cell = Cell.readCell(pageContents, pageType);
             ByteBuffer cellPayload = ByteBuffer.wrap(cell.getPayload()).order(ByteOrder.BIG_ENDIAN);
-            var record = Record.readRecord(cellPayload);
-            var objectType = (String) record.getValues().get(0);
-            var objectName = (String) record.getValues().get(2);
-            var objectDef = (String) record.getValues().get(4);
-            Object val3 = record.getValues().get(3);
-            int pageNumber;
-            if (val3 instanceof Integer) {
-                pageNumber = (Integer) val3;
-            } else if (val3 instanceof Byte) {
-                pageNumber = (Byte) val3;
-            } else {
-                throw new RuntimeException("unexpected type for val3");
-            }
-            var objectPageNumber = pageNumber;
+            var schemaRecord = Record.readRecord(cellPayload);
 
-            if (objectName.equals(table)) {
-                switch (objectType) {
-                    case "table" -> {
-                        List<Column> columns = parseColumns(objectDef);
-                        schema = new Schema(objectName, columns, objectPageNumber);
-                    }
-                    case "index" -> {
-                        assert schema != null;
-                        schema.index = parseIndex(schema, objectPageNumber, objectName, objectDef);
-                    }
-                }
-            }
+            schema = processSchemaRecord(schemaRecord, schema, table);
         }
 
         if (schema == null) {
-            throw new RuntimeException("error loading schema for table: " + table);
+            throw new SchemaLoadingException("Error loading schema for table: " + table);
         }
         return schema;
+    }
+
+    private static Schema processSchemaRecord(Record schemaRecord, Schema schema, String table) {
+        var objectType = (String) schemaRecord.getValues().get(0);
+        var objectName = (String) schemaRecord.getValues().get(2);
+        var objectDef = (String) schemaRecord.getValues().get(4);
+        int pageNumber = extractPageNumber(schemaRecord);
+
+        if (objectName.equals(table)) {
+            switch (objectType) {
+                case "table" -> {
+                    List<Column> columns = parseColumns(objectDef);
+                    schema = new Schema(objectName, columns, pageNumber);
+                }
+                case "index" -> {
+                    if (schema instanceof Schema s) {
+                        s.index = parseIndex(s, pageNumber, objectName, objectDef);
+                    }
+                }
+                default -> throw new SchemaLoadingException("Unknown object type: " + objectType);
+            }
+        }
+        return schema;
+    }
+
+    private static int extractPageNumber(Record schemaRecord) {
+        Object val3 = schemaRecord.getValues().get(3);
+        return switch (val3) {
+            case Integer integer -> integer;
+            case Byte byteValue -> byteValue.intValue();
+            default -> throw new UnexpectedValueTypeException("Unexpected type for val3");
+        };
     }
 
     protected static Index parseIndex(Schema schema, int indexPageNumber, String indexName, String indexDef) {
         int openParenIdx = indexDef.indexOf('(');
         int closeParenIdx = indexDef.indexOf(')');
         String colName = indexDef.substring(openParenIdx + 1, closeParenIdx);
-        var colIndex = schema.columnList.stream()
+        var colOptional = schema.columnList.stream()
                 .filter(c -> c.name.equals(colName))
-                .findAny()
-                .get()
-                .index;
+                .findAny();
+        if (colOptional.isEmpty()) {
+            throw new SchemaLoadingException("Column not found: " + colName);
+        }
+        var colIndex = colOptional.get().index;
         return new Index(indexName, colName, colIndex, indexPageNumber);
     }
 
@@ -135,5 +147,17 @@ public class Schema {
                 ", columnList=" + columnList +
                 ", index=" + index +
                 '}';
+    }
+}
+
+class UnexpectedValueTypeException extends RuntimeException {
+    public UnexpectedValueTypeException(String message) {
+        super(message);
+    }
+}
+
+class SchemaLoadingException extends RuntimeException {
+    public SchemaLoadingException(String message) {
+        super(message);
     }
 }

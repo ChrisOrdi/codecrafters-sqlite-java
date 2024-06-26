@@ -28,46 +28,33 @@ public class BtreePage {
         this.pageContents = pageContents;
     }
 
-        //    public static BtreePage readPage(ByteBuffer fileBuffer, int pageNumber){
-        //        int pageSize = fileBuffer.position(16).getShort() & 0xFFFF;
-        //        int firstPageOffset = pageNumber == 1 ? 100 : 0;
-        //        int pageOffset = (pageNumber-1) * pageSize + firstPageOffset;
-        //        fileBuffer.position(pageOffset);
-        //        var header = BtreePageHeader.getHeader(fileBuffer);
-        //        var cellPointerArray = new short[header.cellCounts];
-        //        for(int i=0;i<header.cellCounts;++i){
-        //            cellPointerArray[i] = fileBuffer.getShort();
-        //        }
-        //        fileBuffer.position((pageNumber-1)*pageSize);
-        //        byte[] pageContents = new byte[pageSize];
-        //        fileBuffer.get(pageContents);
-        //        return new BtreePage(header, cellPointerArray, pageContents);
-        //    }
+    public static BtreePage readPage(RandomAccessFile file, int pageSize, int pageNumber) throws IOException {
+        byte[] pageContents = new byte[pageSize];
+        int pageOffset = (pageNumber - 1) * pageSize;
+        file.seek(pageOffset);
+        int filesRead = file.read(pageContents);
 
-        public static BtreePage readPage(RandomAccessFile file, int pageSize,
-        int pageNumber) throws IOException {
-            byte[] pageContents = new byte[pageSize];
-            int pageOffset = (pageNumber - 1) * pageSize;
-            file.seek(pageOffset);
-            var filesRead = file.read(pageContents);
-            assert filesRead == pageSize;
-            ByteBuffer pageBuffer =
-                    ByteBuffer.wrap(pageContents).order(ByteOrder.BIG_ENDIAN);
-            if (pageNumber == 1) { // skip db header
-                pageBuffer.position(100);
-            }
-            var header = BtreePageHeader.getHeader(pageBuffer);
-            var cellPointerArray = new short[header.cellCounts];
-            for (int i = 0; i < header.cellCounts; ++i) {
-                cellPointerArray[i] = pageBuffer.getShort();
-            }
-            return new BtreePage(header, cellPointerArray, pageContents);
+        if (filesRead != pageSize) {
+            throw new IOException("Failed to read the entire page. Expected: " + pageSize + " bytes, but read: " + filesRead + " bytes.");
         }
 
+        ByteBuffer pageBuffer = ByteBuffer.wrap(pageContents).order(ByteOrder.BIG_ENDIAN);
+        if (pageNumber == 1) { // skip db header
+            pageBuffer.position(100);
+        }
 
-        public void popCells() {
-            //        System.out.printf("pageType: %d\n",
-            //        this.btreePageHeader.pageType);
+        BtreePageHeader header = BtreePageHeader.getHeader(pageBuffer);
+        short[] cellPointerArray = new short[header.cellCounts];
+        for (int i = 0; i < header.cellCounts; ++i) {
+            cellPointerArray[i] = pageBuffer.getShort();
+        }
+
+        return new BtreePage(header, cellPointerArray, pageContents);
+    }
+
+
+
+    public void popCells() {
             this.cellArray = new Cell[this.cellPointerArray.length];
             if (this.btreePageHeader.pageType != 0x05) {
                 this.records = new Record[this.cellPointerArray.length];

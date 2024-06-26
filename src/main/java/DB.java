@@ -39,9 +39,9 @@ public class DB {
         ByteBuffer firstPage =
                 ByteBuffer.wrap(pageBuffer).order(ByteOrder.BIG_ENDIAN);
         firstPage.position(100);
-        var BtreeHeader = BtreePageHeader.getHeader(firstPage);
-        assert BtreeHeader.pageType == 0x0d;
-        return new DBInfo(pageSize, BtreeHeader.cellCounts);
+        var btreeHeader = BtreePageHeader.getHeader(firstPage);
+        assert btreeHeader.pageType == 0x0d;
+        return new DBInfo(pageSize, btreeHeader.cellCounts);
     }
     public void printTableNames() throws IOException {
         BtreePage page = getFirstPage();
@@ -188,6 +188,7 @@ public class DB {
             System.out.println();
         }
     }
+
     private Cell getNthCell(ByteBuffer pageContents, short cellPointer,
                             byte pageType) {
         pageContents.position(cellPointer);
