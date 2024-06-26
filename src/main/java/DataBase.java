@@ -77,13 +77,27 @@ public class DataBase {
             var cell = Cell.readCell(pageContents, tablePage.btreePageHeader.pageType);
             ByteBuffer cellPayload = ByteBuffer.wrap(cell.getPayload()).order(ByteOrder.BIG_ENDIAN);
             var record = Record.readRecord(cellPayload);
-            String[] row = new String[columnIndexes.size()];
-            for (int i = 0; i < columnIndexes.size(); ++i) {
-                row[i] = String.valueOf(record.getValues().get(columnIndexes.get(i)));
+            if (matchesWhereClause(record, schema, query)) {
+                String[] row = new String[columnIndexes.size()];
+                for (int i = 0; i < columnIndexes.size(); ++i) {
+                    row[i] = String.valueOf(record.getValues().get(columnIndexes.get(i)));
+                }
+                result.add(row);
             }
-            result.add(row);
         }
         return result;
+    }
+
+    private boolean matchesWhereClause(Record record, Schema schema, Query query) {
+        if (query.getWhereColumn() == null || query.getWhereValue() == null) {
+            return true;
+        }
+        int columnIndex = schema.columnList.stream()
+                .filter(c -> c.name().equals(query.getWhereColumn()))
+                .map(Schema.Column::index)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("column not found " + query.getWhereColumn()));
+        return Objects.equals(record.getValues().get(columnIndex), query.getWhereValue());
     }
 
     private List<Integer> getColumnIndexes(Schema schema, Query query) {
